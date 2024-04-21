@@ -1,64 +1,91 @@
-const PIXELSIZE = 15;
-const GAMEWIDTH = 900;
-const GAMEHEIGHT = 600;
-const convert = {
-  x: (x) => x * PIXELSIZE,
-  y: (y) => y * PIXELSIZE,
+const CELLSIZE = 20;
+const GAMEWIDTH = 1000;
+const GAMEHEIGHT = 800;
+
+const isLine = (x1, y1, x2, y2) => {
+  console.log({
+    clicked: [x1, y1],
+    selected: [x2, y2],
+  });
+  x2 - x1;
+  return Math.abs(x2 - x1) > Math.abs(y2 - y1);
 };
 
 const canvas = document.querySelector("#game-grid");
 canvas.setAttribute("height", GAMEHEIGHT);
 canvas.setAttribute("width", GAMEWIDTH);
-const { width, height } = canvas.getBoundingClientRect();
 
+const { width, height } = canvas.getBoundingClientRect();
 class Game {
   constructor(width, height) {
-    this.grid = this.makeInitialGrid(width, height);
     this.ctx = canvas.getContext("2d");
+    this.width = width;
+    this.height = height;
+    this.s = CELLSIZE;
+    this.nX = Math.floor(width / this.s) - 2;
+    this.nY = Math.floor(height / this.s) - 2;
+    this.pX = width - this.nX * this.s;
+    this.pY = height - this.nY * this.s;
+    this.pL = Math.ceil(this.pX / 2);
+    this.pR = Math.ceil(this.pY / 2);
+    this.pT = width - this.nX * this.s - this.pL;
+    this.pB = height - this.nY * this.s - this.pT;
+    this.grid = this.makeInitialGrid(width, height);
+    this.convert = {
+      x: (x) => x * this.s + this.pL + 1,
+      y: (y) => y * this.s + this.pT + 1,
+    };
+    this.interval = null;
+    this.listener = null;
   }
+
   //   GRID FUNCS
-  makeInitialGrid(width, height) {
-    const rows = new Array(width / PIXELSIZE).fill(0);
-    const columns = new Array(height / PIXELSIZE);
-    const grid = columns.fill(rows);
-    grid[1][1] = 1;
-    grid[2][1] = 1;
-    grid[3][1] = 1;
-    console.log(grid);
+  makeInitialGrid() {
+    const rows = new Array(this.nX).fill(0);
+    const columns = new Array(this.nY);
+    let grid = columns.fill(rows);
+
     return grid;
   }
 
+  drawGrid() {
+    this.ctx.strokeStyle = "lightgrey";
+    this.ctx.beginPath();
+    for (let x = this.pL; x <= this.width - this.pR; x += this.s) {
+      this.ctx.moveTo(x, this.pT);
+      this.ctx.lineTo(x, this.height - this.pB);
+    }
+    for (let y = this.pT; y <= this.height - this.pB; y += this.s) {
+      this.ctx.moveTo(this.pL, y);
+      this.ctx.lineTo(this.width - this.pR, y);
+    }
+    this.ctx.stroke();
+    this.ctx.closePath();
+  }
+
   getSelf(x, y) {
-    return this.grid[x][y];
+    return this.grid[y][x];
   }
 
   mapGrid(func) {
     return this.grid.map((row, rowIndex) =>
-      row.map((col, colIndex) => func(rowIndex, colIndex))
+      row.map((col, colIndex) => func(colIndex, rowIndex))
     );
   }
 
   getSiblings(x, y) {
     const siblings = [
       [x - 1, y - 1],
-      [x, y - 1],
-      [x + 1, y - 1],
       [x - 1, y],
-      [x + 1, y],
       [x - 1, y + 1],
+      [x, y - 1],
       [x, y + 1],
+      [x + 1, y - 1],
+      [x + 1, y],
       [x + 1, y + 1],
-    ].filter((array) => {
-      return array.every((number) => {
-        return (
-          number >= 0 &&
-          number < GAMEHEIGHT / PIXELSIZE &&
-          number < GAMEWIDTH / PIXELSIZE
-        );
-      });
-    });
-    return siblings.flatMap(([x, y]) =>
-      this.grid[x][y] === 1 ? this.grid[x][y] === 1 : []
+    ].filter(([x2, y2]) => x2 >= 0 && y2 >= 0 && y2 < this.nY && x2 < this.nX);
+    return siblings.flatMap(([x3, y3]) =>
+      this.grid[y3][x3] === 1 ? this.grid[y3][x3] : []
     );
   }
 
@@ -71,41 +98,158 @@ class Game {
   makeNextPixel(x, y) {
     const self = this.getSelf(x, y);
     const siblings = this.getSiblings(x, y);
-
     return this.nextState(self, siblings);
   }
 
   makeNextGrid() {
-    this.grid = this.mapGrid((row, col) => {
-      return this.makeNextPixel(row, col);
+    this.grid = this.mapGrid((x, y) => {
+      return this.makeNextPixel(x, y);
     });
   }
 
   //   RENDER
-  renderGrid() {
+  renderGame() {
     this.mapGrid((row, col) => {
-      const cell = this.grid[row][col];
+      const cell = this.grid[col][row];
       cell === 0 ? this.clearCell(row, col) : this.fillCell(row, col);
     });
+    this.ctx.strokeStyle = "transparent";
   }
 
   fillCell(x, y) {
-    this.ctx.fillStyle = "black";
-    this.ctx.fillRect(convert.x(x), convert.y(y), 15, 15);
+    this.ctx.fillStyle = "limegreen";
+    this.ctx.fillRect(
+      this.convert.x(x),
+      this.convert.y(y),
+      CELLSIZE - 1.85,
+      CELLSIZE - 1.85
+    );
+  }
+
+  hoverCell(x, y) {
+    this.ctx.fillStyle = "darkgreen";
+    this.ctx.fillRect(
+      this.convert.x(x),
+      this.convert.y(y),
+      CELLSIZE - 1.85,
+      CELLSIZE - 1.85
+    );
   }
 
   clearCell(x, y) {
-    this.ctx.fillStyle = "white";
-    this.ctx.fillRect(convert.x(x), convert.y(y), 15, 15);
+    this.ctx.fillStyle = "#44464d";
+    this.ctx.fillRect(
+      this.convert.x(x),
+      this.convert.y(y),
+      CELLSIZE - 1.85,
+      CELLSIZE - 1.85
+    );
+  }
+
+  makeRandomGrid() {
+    this.grid = this.grid.map((col, colIndex) =>
+      col.map((row, rowIndex) => {
+        const random = Math.random();
+        return random > 0.5 ? 1 : 0;
+      })
+    );
+  }
+
+  resetGame() {
+    if (this.interval) {
+      clearInterval(this.interval);
+      this.interval = null;
+    }
+    this.listener = canvas.addEventListener(
+      "click",
+      this.onClickCanvas.bind(this)
+    );
+    canvas.addEventListener("mouseOver", (e) => {
+      console.log(e);
+    });
+  }
+
+  // GAME
+  initGame() {
+    this.resetGame();
+    this.drawGrid();
+    this.makeNextGrid();
+    this.renderGame();
   }
 
   startGame() {
-    setInterval(() => {
-      this.renderGrid();
+    canvas.removeEventListener("click", this.listener);
+
+    if (this.interval) return;
+    const interval = setInterval(() => {
+      this.renderGame();
       this.makeNextGrid();
-    }, 1000);
+    }, 1000 / 30);
+    this.interval = interval;
+  }
+
+  setCellClicked(arg) {
+    this.cellClicked = arg;
+  }
+
+  getCellFromClick(e) {
+    const offsetX = e.offsetX;
+    const offsetY = e.offsetY;
+    const gridX = Math.floor(offsetX / this.s) - 1;
+    const gridY = Math.floor(offsetY / this.s) - 1;
+
+    return [gridX, gridY];
+  }
+
+  // SETUP / INTERACTION
+
+  paintLine(x, y, x2) {
+    const init = x > x2 ? x2 : x;
+    const compare = x > x2 ? x : x2;
+    console.log(init, compare);
+    for (let cx = init; cx <= compare; ++cx) {
+      console.log(this.grid[y][cx]);
+      this.grid[y][cx] = 1;
+    }
+  }
+
+  paintColumn(y, x, y2) {
+    const init = y > y2 ? y2 : y;
+    const compare = y < y2 ? y : y2;
+    console.log(init, compare);
+    for (let cy = init; cy <= compare; ++cy) {
+      console.log(cy);
+      this.grid[cy][x] = 1;
+    }
+  }
+
+  onClickCanvas(e) {
+    const [clickX, clickY] = this.getCellFromClick(e);
+    if (!this.cellClicked) {
+      this.grid[clickY][clickX] = this.grid[clickY][clickX] === 0 ? 1 : 0;
+      this.setCellClicked([clickX, clickY]);
+      this.canvasHoverListener = true;
+    } else {
+      this.canvasHoverListener = false;
+      const [cellX, cellY] = this.cellClicked;
+      isLine(cellX, cellY, clickX, clickY)
+        ? this.paintLine(cellX, cellY, clickX)
+        : this.paintColumn(cellY, cellX, clickY);
+      this.setCellClicked(null);
+    }
+    this.renderGame();
   }
 }
 
-const game = new Game(width, height);
-game.startGame();
+const game = new Game(GAMEWIDTH, GAMEHEIGHT);
+
+const startButton = document.getElementById("start-button");
+startButton.addEventListener("click", () => game.startGame());
+
+const resetButton = document.getElementById("reset-button");
+resetButton.addEventListener("click", () => {
+  game.makeRandomGrid();
+  game.initGame();
+});
+
+game.initGame();
