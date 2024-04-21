@@ -1,4 +1,4 @@
-const CELLSIZE = 20;
+const CELLSIZE = 10;
 const GAMEWIDTH = 1000;
 const GAMEHEIGHT = 800;
 
@@ -225,18 +225,7 @@ class Game {
 
   onClickCanvas(e) {
     const [clickX, clickY] = this.getCellFromClick(e);
-    if (!this.cellClicked) {
-      this.grid[clickY][clickX] = this.grid[clickY][clickX] === 0 ? 1 : 0;
-      this.setCellClicked([clickX, clickY]);
-      this.canvasHoverListener = true;
-    } else {
-      this.canvasHoverListener = false;
-      const [cellX, cellY] = this.cellClicked;
-      isLine(cellX, cellY, clickX, clickY)
-        ? this.paintLine(cellX, cellY, clickX)
-        : this.paintColumn(cellY, cellX, clickY);
-      this.setCellClicked(null);
-    }
+    this.grid[clickY][clickX] = this.grid[clickY][clickX] === 0 ? 1 : 0;
     this.renderGame();
   }
 }
